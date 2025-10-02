@@ -1215,6 +1215,24 @@ def create_composition_plan(
 
     return composition_plan
 
+@mcp.tool(description="List all available workspace tools")
+def list_tools(max_length: int = 10000) -> TextContent:
+    """List all available tools in the ElevenLabs workspace.
+
+    Args:
+        max_length: Unused; kept for backward compatibility
+
+    Returns:
+        TextContent containing the raw JSON from the API
+    """
+    try:
+        response = client.conversational_ai.tools.list()
+        return TextContent(type="text", text=response.model_dump_json(indent=2))
+    except Exception as e:
+        make_error(f"Failed to list tools: {str(e)}")
+        # satisfies type checker
+        return TextContent(type="text", text="")
+
 
 def main():
     print("Starting MCP server")
