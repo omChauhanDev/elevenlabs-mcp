@@ -1,4 +1,5 @@
 import os
+import re
 import tempfile
 import base64
 from pathlib import Path
@@ -458,3 +459,19 @@ def get_output_mode_description(output_mode: str) -> str:
         return "Saves file to directory (default: $HOME/Desktop) AND returns as base64-encoded MCP resource"
     else:
         return "Output behavior depends on ELEVENLABS_MCP_OUTPUT_MODE setting"
+
+
+def extract_api_error_message(error: Exception) -> str | None:
+    """
+    Extraction of a clear API error message from ElevenLabs SDK exceptions.
+    Tries to parse the typical "body: {'detail': {'status': '...', 'message': '...'}}" format.
+    Returns None if no clear message can be extracted.
+    """
+    try:
+        raw = str(error)
+        m = re.search(r"message': '([^']+)'", raw)
+        if m:
+            return m.group(1)
+    except Exception:
+        return None
+    return None
