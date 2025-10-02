@@ -1234,6 +1234,26 @@ def list_tools(max_length: int = 10000) -> TextContent:
         return TextContent(type="text", text="")
 
 
+@mcp.tool(description="Get details for a specific workspace tool")
+def get_tool(tool_id: str) -> TextContent:
+    """Get details about a specific tool by ID.
+
+    Args:
+        tool_id: The ID of the tool to retrieve
+
+    Returns:
+        TextContent containing the raw JSON from the API
+    """
+    try:
+        response = client.conversational_ai.tools.get(tool_id=tool_id)
+        return TextContent(type="text", text=response.model_dump_json(indent=2))
+
+    except Exception as e:
+        make_error(f"Failed to get tool: {str(e)}")
+        # satisfies type checker
+        return TextContent(type="text", text="")
+
+
 def main():
     print("Starting MCP server")
     """Run the MCP server"""

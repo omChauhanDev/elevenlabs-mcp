@@ -1,6 +1,6 @@
 import json
 import pytest
-from elevenlabs_mcp.server import list_tools
+from elevenlabs_mcp.server import list_tools, get_tool
 
 
 class DummyObj:
@@ -20,11 +20,14 @@ class DummyObj:
 
 @pytest.fixture(autouse=True)
 def mock_client(monkeypatch):
-    state = {"response": DummyObj(tools=[])}
+    state = {"response": DummyObj(tools=[]), "get_response": None}
 
     class MockTools:
         def list(self):
             return state["response"]
+
+        def get(self, tool_id: str):
+            return state["get_response"]
 
     class MockConvAI:
         def __init__(self):
@@ -63,4 +66,22 @@ def test_list_tools_mixed_types_json_passthrough(mock_client):
     assert len(data["tools"]) == 3
 
     ids = {t["id"] for t in data["tools"]}
-    assert ids == {"tool_webhook", "tool_client", "tool_system"} 
+    assert ids == {"tool_webhook", "tool_client", "tool_system"}
+
+
+def test_get_tool_json_passthrough(mock_client):
+    api_schema = DummyObj(method="GET", url="https://example.com/test")
+    webhook_cfg = DummyObj(type="webhook", name="first_tool", api_schema=api_schema)
+    mock_client["get_response"] = DummyObj(
+        id="tool_123",
+        tool_config=webhook_cfg,
+        access_info=DummyObj(role="admin"),
+        usage_stats=DummyObj(total_calls=0),
+    )
+
+    result = get_tool("tool_123")
+    data = json.loads(result.text)
+
+    assert data["id"] == "tool_123"
+    assert data["tool_config"]["type"] == "webhook"
+    assert data["tool_config"]["name"] == "first_tool" 
