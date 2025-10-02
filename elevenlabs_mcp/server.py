@@ -1244,13 +1244,41 @@ def get_tool(tool_id: str) -> TextContent:
     Returns:
         TextContent containing the raw JSON from the API
     """
+    if tool_id == "":
+        make_error("Tool ID is required.")
     try:
         response = client.conversational_ai.tools.get(tool_id=tool_id)
         return TextContent(type="text", text=response.model_dump_json(indent=2))
 
     except Exception as e:
-        make_error(f"Failed to get tool: {str(e)}")
+        msg = str(e)
+        if "tool_not_found" in msg.lower():
+            make_error(f"Tool with id {tool_id} not found.")
+        make_error(f"Failed to get tool: {msg}")
         # satisfies type checker
+        return TextContent(type="text", text="")
+
+
+@mcp.tool(description="Delete a specific workspace tool")
+def delete_tool(tool_id: str) -> TextContent:
+    """Delete a tool by ID.
+
+    Args:
+        tool_id: The ID of the tool to delete
+
+    Returns:
+        TextContent with a simple success message when deleted
+    """
+    if tool_id == "":
+        make_error("Tool ID is required.")
+    try:
+        client.conversational_ai.tools.delete(tool_id=tool_id)
+        return TextContent(type="text", text=f"Tool deleted successfully: {tool_id}")
+    except Exception as e:
+        msg = str(e)
+        if "tool_not_found" in msg.lower():
+            make_error(f"Tool with id {tool_id} not found.")
+        make_error(f"Failed to delete tool: {msg}")
         return TextContent(type="text", text="")
 
 

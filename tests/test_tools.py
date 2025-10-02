@@ -1,6 +1,7 @@
 import json
 import pytest
-from elevenlabs_mcp.server import list_tools, get_tool
+from elevenlabs_mcp.server import list_tools, get_tool, delete_tool
+from elevenlabs_mcp.utils import ElevenLabsMcpError
 
 
 class DummyObj:
@@ -20,14 +21,29 @@ class DummyObj:
 
 @pytest.fixture(autouse=True)
 def mock_client(monkeypatch):
-    state = {"response": DummyObj(tools=[]), "get_response": None}
+    state = {
+        "response": DummyObj(tools=[]),
+        "get_response": None,
+        "get_raises": False,
+        "get_error": "tool_not_found",
+        "delete_response": None,
+        "delete_raises": False,
+        "delete_error": "tool_not_found",
+    }
 
     class MockTools:
         def list(self):
             return state["response"]
 
         def get(self, tool_id: str):
+            if state["get_raises"]:
+                raise RuntimeError(state["get_error"])
             return state["get_response"]
+
+        def delete(self, tool_id: str):
+            if state["delete_raises"]:
+                raise RuntimeError(state["delete_error"])
+            return state["delete_response"]
 
     class MockConvAI:
         def __init__(self):
@@ -84,4 +100,26 @@ def test_get_tool_json_passthrough(mock_client):
 
     assert data["id"] == "tool_123"
     assert data["tool_config"]["type"] == "webhook"
-    assert data["tool_config"]["name"] == "first_tool" 
+    assert data["tool_config"]["name"] == "first_tool"
+
+
+def test_get_tool_not_found_error(mock_client):
+    mock_client["get_raises"] = True
+    mock_client["get_error"] = "Tool with id tool_123 not found. tool_not_found"
+    with pytest.raises(ElevenLabsMcpError):
+        get_tool("tool_123")
+
+
+def test_delete_tool_success_message(mock_client):
+    mock_client["delete_raises"] = False
+    mock_client["delete_response"] = None
+    tool_id = "tool_999"
+    result = delete_tool(tool_id)
+    assert result.text == f"Tool deleted successfully: {tool_id}"
+
+
+def test_delete_tool_not_found_error(mock_client):
+    mock_client["delete_raises"] = True
+    mock_client["delete_error"] = "Tool with id tool_999 not found. tool_not_found"
+    with pytest.raises(ElevenLabsMcpError):
+        delete_tool("tool_999") 
