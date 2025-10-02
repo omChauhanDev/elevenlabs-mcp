@@ -39,6 +39,7 @@ from elevenlabs_mcp.utils import (
     handle_output_mode,
     handle_multiple_files_output_mode,
     get_output_mode_description,
+    extract_api_error_message,
 )
 
 from elevenlabs_mcp.convai import create_conversation_config, create_platform_settings
@@ -1229,8 +1230,10 @@ def list_tools(max_length: int = 10000) -> TextContent:
         response = client.conversational_ai.tools.list()
         return TextContent(type="text", text=response.model_dump_json(indent=2))
     except Exception as e:
+        api_msg = extract_api_error_message(e)
+        if api_msg:
+            make_error(api_msg)
         make_error(f"Failed to list tools: {str(e)}")
-        # satisfies type checker
         return TextContent(type="text", text="")
 
 
@@ -1251,11 +1254,9 @@ def get_tool(tool_id: str) -> TextContent:
         return TextContent(type="text", text=response.model_dump_json(indent=2))
 
     except Exception as e:
-        msg = str(e)
-        if "tool_not_found" in msg.lower():
-            make_error(f"Tool with id {tool_id} not found.")
-        make_error(f"Failed to get tool: {msg}")
-        # satisfies type checker
+        api_msg = extract_api_error_message(e)
+        if api_msg:
+            make_error(api_msg)
         return TextContent(type="text", text="")
 
 
@@ -1275,10 +1276,35 @@ def delete_tool(tool_id: str) -> TextContent:
         client.conversational_ai.tools.delete(tool_id=tool_id)
         return TextContent(type="text", text=f"Tool deleted successfully: {tool_id}")
     except Exception as e:
-        msg = str(e)
-        if "tool_not_found" in msg.lower():
-            make_error(f"Tool with id {tool_id} not found.")
-        make_error(f"Failed to delete tool: {msg}")
+        api_msg = extract_api_error_message(e)
+        if api_msg:
+            make_error(api_msg)
+        return TextContent(type="text", text="")
+
+
+@mcp.tool(description="Get agents depending on a specific tool")
+def get_dependent_agents(tool_id: str, cursor: str | None = None, page_size: int | None = None) -> TextContent:
+    """List agents that depend on a given tool.
+
+    Args:
+        tool_id: The ID of the tool
+        cursor: Optional pagination cursor
+        page_size: Optional page size (1-100)
+
+    Returns:
+        TextContent containing the raw JSON from the API
+    """
+    if tool_id == "":
+        make_error("Tool ID is required.")
+    try:
+        response = client.conversational_ai.tools.get_dependent_agents(
+            tool_id=tool_id, cursor=cursor, page_size=page_size
+        )
+        return TextContent(type="text", text=response.model_dump_json(indent=2))
+    except Exception as e:
+        api_msg = extract_api_error_message(e)
+        if api_msg:
+            make_error(api_msg)
         return TextContent(type="text", text="")
 
 

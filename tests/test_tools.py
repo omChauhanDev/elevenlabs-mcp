@@ -1,6 +1,6 @@
 import json
 import pytest
-from elevenlabs_mcp.server import list_tools, get_tool, delete_tool
+from elevenlabs_mcp.server import list_tools, get_tool, delete_tool, get_dependent_agents
 from elevenlabs_mcp.utils import ElevenLabsMcpError
 
 
@@ -29,6 +29,9 @@ def mock_client(monkeypatch):
         "delete_response": None,
         "delete_raises": False,
         "delete_error": "tool_not_found",
+        "dep_agents_response": DummyObj(agents=[], next_cursor=None, has_more=False),
+        "dep_agents_raises": False,
+        "dep_agents_error": "tool_not_found",
     }
 
     class MockTools:
@@ -44,6 +47,11 @@ def mock_client(monkeypatch):
             if state["delete_raises"]:
                 raise RuntimeError(state["delete_error"])
             return state["delete_response"]
+
+        def get_dependent_agents(self, tool_id: str, cursor=None, page_size=None):
+            if state["dep_agents_raises"]:
+                raise RuntimeError(state["dep_agents_error"])
+            return state["dep_agents_response"]
 
     class MockConvAI:
         def __init__(self):
@@ -105,7 +113,7 @@ def test_get_tool_json_passthrough(mock_client):
 
 def test_get_tool_not_found_error(mock_client):
     mock_client["get_raises"] = True
-    mock_client["get_error"] = "Tool with id tool_123 not found. tool_not_found"
+    mock_client["get_error"] = "body: {'detail': {'status': 'tool_not_found', 'message': 'Tool with id tool_123 not found.'}}"
     with pytest.raises(ElevenLabsMcpError):
         get_tool("tool_123")
 
@@ -120,6 +128,40 @@ def test_delete_tool_success_message(mock_client):
 
 def test_delete_tool_not_found_error(mock_client):
     mock_client["delete_raises"] = True
-    mock_client["delete_error"] = "Tool with id tool_999 not found. tool_not_found"
+    mock_client["delete_error"] = "body: {'detail': {'status': 'tool_not_found', 'message': 'Tool with id tool_999 not found.'}}"
     with pytest.raises(ElevenLabsMcpError):
-        delete_tool("tool_999") 
+        delete_tool("tool_999")
+
+
+def test_get_dependent_agents_empty(mock_client):
+    mock_client["dep_agents_response"] = DummyObj(agents=[], next_cursor=None, has_more=False)
+    result = get_dependent_agents("tool_good")
+    data = json.loads(result.text)
+    assert data["agents"] == []
+    assert data["next_cursor"] is None
+    assert data["has_more"] is False
+
+
+def test_get_dependent_agents_populated(mock_client):
+    agents = [
+        DummyObj(
+            id="agent_1",
+            name="Jarvis",
+            type="available",
+            created_at_unix_secs=1759419452,
+            access_level="admin",
+        )
+    ]
+    mock_client["dep_agents_response"] = DummyObj(agents=agents, next_cursor=None, has_more=False)
+    result = get_dependent_agents("tool_good")
+    data = json.loads(result.text)
+    assert len(data["agents"]) == 1
+    assert data["agents"][0]["id"] == "agent_1"
+    assert data["has_more"] is False
+
+
+def test_get_dependent_agents_not_found(mock_client):
+    mock_client["dep_agents_raises"] = True
+    mock_client["dep_agents_error"] = "body: {'detail': {'status': 'tool_not_found', 'message': 'Tool with id tool_bad not found.'}}"
+    with pytest.raises(ElevenLabsMcpError):
+        get_dependent_agents("tool_bad") 
